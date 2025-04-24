@@ -7,6 +7,7 @@ import Dashboard from "./components/pages/dashboard";
 import Success from "./components/pages/success";
 import Home from "./components/pages/home";
 import Generator from "./components/pages/generator";
+import Inspiration from "./components/pages/inspiration";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
 
@@ -44,6 +45,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <Generator />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/inspiration"
+          element={
+            <PrivateRoute>
+              <Inspiration />
             </PrivateRoute>
           }
         />
