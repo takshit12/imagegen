@@ -8,6 +8,9 @@ import Success from "./components/pages/success";
 import Home from "./components/pages/home";
 import Generator from "./components/pages/generator";
 import Inspiration from "./components/pages/inspiration";
+import AdminTemplates from "./components/pages/AdminTemplates";
+import TemplateGallery from "./components/pages/TemplateGallery";
+import TemplateGenerator from "./components/pages/TemplateGenerator";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
 
@@ -53,6 +56,30 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <Inspiration />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/templates"
+          element={
+            <PrivateRoute>
+              <AdminTemplates />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/templates"
+          element={
+            <PrivateRoute>
+              <TemplateGallery />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/template/:templateId"
+          element={
+            <PrivateRoute>
+              <TemplateGenerator />
             </PrivateRoute>
           }
         />

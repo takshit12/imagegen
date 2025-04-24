@@ -27,6 +27,7 @@ import {
   Lightbulb,
   Wand2,
   LogIn,
+  Palette,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../supabase/auth";
@@ -157,6 +158,16 @@ function HomePageV2() {
              >
                 <Link to="/inspiration">
                     <Lightbulb className="mr-2 h-5 w-5" /> Brand Inspiration
+                </Link>
+            </Button>
+            <Button 
+               asChild 
+               size="lg"
+               variant="outline"
+               className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
+             >
+                <Link to="/templates">
+                    <Palette className="mr-2 h-5 w-5" /> Style Templates
                 </Link>
             </Button>
         </div>
