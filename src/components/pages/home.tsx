@@ -92,7 +92,7 @@ function HomePageV2() {
       <header className="container mx-auto px-6 py-5 flex justify-between items-center z-20 relative">
          {/* Logo/Title - Optional */}
         <div className="text-xl font-semibold tracking-tight">
-          ImageGen AI {/* Can be styled differently if needed */}
+          Duuna AI {/* Can be styled differently if needed */}
         </div>
         <nav>
           {user ? (
