@@ -8,6 +8,18 @@ function getEnvVar(key) {
   }
   return value;
 }
+// --- Detailed Style Replication Instructions ---
+const DETAILED_STYLE_INSTRUCTIONS = `
+
+INSTRUCTIONS FOR STYLE REPLICATION:
+- Font Style: Pay meticulous attention to replicating the exact font style, including typeface, weight, kerning, leading, and any specific typographic treatments (e.g., outlines, shadows, distortions) present in the reference images.
+- Texture & Material: Analyze and reproduce the surface textures, material qualities (e.g., glossiness, grain, fabric weave, metallic sheen, matte finish), and overall finish seen in the reference images.
+- Lighting & Shadows: Precisely match the lighting conditions, including the direction, intensity, softness/hardness, and color temperature of light sources. Replicate the resulting shadows, highlights, and reflections accurately.
+- Color Palette: Strictly adhere to the exact color palette demonstrated in the reference images. Match primary, secondary, and accent colors, along with their precise hue, saturation, and brightness levels.
+- Composition & Placement: Replicate the compositional structure, balance, and framing. Ensure the placement, scale, and orientation of elements relative to each other and the image borders match the references.
+- Overall Aesthetic: Capture the overall mood, artistic style (e.g., minimalist, maximalist, retro, futuristic, photorealistic, illustrative, painterly), and visual essence of the reference images. Ensure the generated image feels like it belongs to the same set.
+`;
+// -------------------------------------------
 // Helper function to convert base64 string (potentially data URI) to Blob
 async function base64ToBlob(base64, contentType = 'image/png') {
   // Strip data URI prefix if present
@@ -37,12 +49,12 @@ serve(async (req)=>{
     // adjustment if OpenAI uses a different endpoint like /v1/images/edits or similar for this model.
     const openaiUrl = "https://api.openai.com/v1/images/edits";
     // --- Get data from Frontend Request ---
-    const { prompt, inspirationImages, n = 1, size = "1024x1024" } = await req.json(); // Still receive JSON from frontend
-    console.log("Received prompt:", prompt ? "Yes" : "No");
+    const { prompt: userContentPrompt, inspirationImages, n = 1, size = "1024x1024" } = await req.json(); // Renamed variable for clarity
+    console.log("Received user content prompt:", userContentPrompt ? "Yes" : "No");
     console.log("Received inspiration images count:", inspirationImages?.length || 0);
     // --- Input Validation ---
-    if (!prompt) {
-      throw new Error("Missing required field: prompt.");
+    if (!userContentPrompt) {
+      throw new Error("Missing required field: prompt (for new image content).");
     }
     if (!inspirationImages || !Array.isArray(inspirationImages) || inspirationImages.length === 0 || inspirationImages.length > 4) {
       throw new Error("Missing or invalid 'inspirationImages' field. Provide 1 to 4 base64 encoded images.");
@@ -52,9 +64,12 @@ serve(async (req)=>{
       throw new Error("Invalid 'inspirationImages' field. All items must be non-empty strings.");
     }
     const numVariations = Math.max(1, Math.min(10, Number(n) || 1));
+    // --- Combine User Prompt with Detailed Instructions ---
+    const finalPrompt = userContentPrompt + DETAILED_STYLE_INSTRUCTIONS;
+    console.log("Constructed final prompt for OpenAI."); // Log that the prompt is combined
     // --- Prepare OpenAI API Request Body as FormData ---
     const formData = new FormData();
-    formData.append('prompt', prompt);
+    formData.append('prompt', finalPrompt); // Use the combined prompt
     formData.append('model', 'gpt-image-1');
     formData.append('n', String(numVariations));
     formData.append('size', size);
@@ -67,7 +82,7 @@ serve(async (req)=>{
       try {
         const blob = await base64ToBlob(inspirationImages[i]);
         // --- Use image[] syntax as suggested by the OpenAI error --- 
-        formData.append('image[]', blob, `image${i}.png`); 
+        formData.append('image[]', blob, `image${i}.png`);
         console.log(`Appended image ${i} as Blob using key 'image[]'.`); // Updated log
       } catch (conversionError) {
         console.error(`Error converting image ${i} to Blob:`, conversionError);

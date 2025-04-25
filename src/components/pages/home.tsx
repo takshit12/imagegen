@@ -138,38 +138,43 @@ function HomePageV2() {
           Explore our AI tools to generate stunning visuals instantly.
         </p>
 
-        {/* Navigation Links/Buttons */}
-        <div className="flex flex-col sm:flex-row gap-5">
-           <Button 
-             asChild 
-             size="lg"
-             variant="outline"
-             className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
-            >
-                <Link to="/generator">
-                    <Wand2 className="mr-2 h-5 w-5" /> A/B Test Generator
-                </Link>
-            </Button>
+        {/* Navigation Links/Buttons - Style Templates centered and larger */}
+        <div className="flex flex-col items-center gap-6"> {/* Main container for buttons */}
+            {/* Central/Main Button */}
              <Button 
                asChild 
-               size="lg"
+               size="lg" // Keep size large, maybe add more padding
                variant="outline"
-               className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
-             >
-                <Link to="/inspiration">
-                    <Lightbulb className="mr-2 h-5 w-5" /> Brand Inspiration
-                </Link>
-            </Button>
-            <Button 
-               asChild 
-               size="lg"
-               variant="outline"
-               className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
+               className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-10 py-4 text-lg w-auto" // Increased padding, text size
              >
                 <Link to="/templates">
                     <Palette className="mr-2 h-5 w-5" /> Style Templates
                 </Link>
             </Button>
+
+            {/* Secondary Buttons Container */}
+            <div className="flex flex-col sm:flex-row gap-4"> {/* Container for the other two */}
+               <Button 
+                 asChild 
+                 size="lg" // Keep size large, but less padding than central
+                 variant="outline"
+                 className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
+                >
+                    <Link to="/generator">
+                        <Wand2 className="mr-2 h-5 w-5" /> A/B Test Generator
+                    </Link>
+                </Button>
+                 <Button 
+                   asChild 
+                   size="lg" // Keep size large, but less padding than central
+                   variant="outline"
+                   className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
+                 >
+                    <Link to="/inspiration">
+                        {/* Icon removed */} Brand Style Duplicator {/* Text updated */}
+                    </Link>
+                </Button>
+            </div>
         </div>
       </main>
 

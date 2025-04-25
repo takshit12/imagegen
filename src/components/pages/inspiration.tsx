@@ -77,8 +77,8 @@ interface GeneratedCreative {
   audience: string;
 }
 
-// --- Renamed Component: Inspiration --- 
-export default function Inspiration() {
+// --- Renamed Component: BrandStyleDuplicator --- 
+export default function BrandStyleDuplicator() {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedCreatives, setGeneratedCreatives] = useState<GeneratedCreative[]>([]);
@@ -350,7 +350,7 @@ export default function Inspiration() {
           {/* Header */}
           <div className="text-center">
             <h1 className="text-4xl md:text-5xl font-medium tracking-tight text-white font-serif mb-2 flex items-center justify-center gap-3">
-              <Lightbulb className="h-8 w-8 text-indigo-400" /> Brand Inspiration Generator
+              <Lightbulb className="h-8 w-8 text-indigo-400" /> Brand Style Duplicator
             </h1>
             <p className="text-lg text-gray-300/80">
               Generate new creatives based on the visual style of existing images.
