@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js'; // <-- Add this import
+import { supabase } from '../../../supabase/supabase'; // <-- ADD THIS IMPORT (adjust path if needed)
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,27 +9,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, PlusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-// --- Supabase Client Initialization (Add this section) ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Supabase URL or Anon Key is missing. Please check your environment variables (.env)."
-  );
-  // Decide how to handle this - throw error, show message, etc.
-  // For admin page, maybe just log and disable functionality?
-}
-
-// Initialize client - use the same options if needed (like fetch timeout)
-const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
-    // Add global fetch options here if you used them in other pages and need them here
-    // global: {
-    //   fetch: (input, init) => { ... timeout logic ... },
-    // },
-});
-// --- End Supabase Client Initialization ---
 
 // Interface for the structure of required_inputs JSON (for validation)
 interface RequiredInputConfig {

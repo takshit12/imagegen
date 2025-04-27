@@ -11,6 +11,7 @@ import Inspiration from "./components/pages/inspiration";
 import AdminTemplates from "./components/pages/AdminTemplates";
 import TemplateGallery from "./components/pages/TemplateGallery";
 import TemplateGenerator from "./components/pages/TemplateGenerator";
+import LipsyncPage from "./components/pages/Lipsync";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
 
@@ -80,6 +81,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <TemplateGenerator />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/lipsync"
+          element={
+            <PrivateRoute>
+              <LipsyncPage />
             </PrivateRoute>
           }
         />

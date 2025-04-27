@@ -28,43 +28,43 @@ import {
 } from "lucide-react";
 import CreativePreview from "../generator/CreativePreview"; // Re-use preview
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from "@supabase/supabase-js";
 import { InspirationDropZone } from "../generator/InspirationDropZone"; // Re-use drop zone
+import { supabase } from "../../../supabase/supabase"; // <-- ADD THIS IMPORT (adjust path if needed)
 
-// --- Supabase Client Initialization (Same as generator) ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Supabase URL or Anon Key is missing. Please check your environment variables (.env)."
-  );
-  throw new Error("Supabase configuration missing in environment variables.");
-}
-
-// Add timeout option during client initialization (Same as generator)
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: {
-    fetch: (input, init) => {
-      // Increase timeout to 5 minutes (300,000 ms)
-      const timeout = 300000;
-      const controller = new AbortController();
-      const signal = controller.signal;
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      return fetch(input, { ...init, signal })
-        .then(response => {
-          clearTimeout(timeoutId);
-          return response;
-        })
-        .catch(error => {
-          clearTimeout(timeoutId);
-          throw error;
-        });
-    },
-  },
-});
-// --- End Supabase Client Initialization ---
+// --- REMOVE Supabase Client Initialization (Same as generator) ---
+// const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+// const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+//
+// if (!supabaseUrl || !supabaseAnonKey) {
+//   console.error(
+//     "Supabase URL or Anon Key is missing. Please check your environment variables (.env)."
+//   );
+//   throw new Error("Supabase configuration missing in environment variables.");
+// }
+//
+// // Add timeout option during client initialization (Same as generator)
+// const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+//   global: {
+//     fetch: (input, init) => {
+//       // Increase timeout to 5 minutes (300,000 ms)
+//       const timeout = 300000;
+//       const controller = new AbortController();
+//       const signal = controller.signal;
+//       const timeoutId = setTimeout(() => controller.abort(), timeout);
+//
+//       return fetch(input, { ...init, signal })
+//         .then(response => {
+//           clearTimeout(timeoutId);
+//           return response;
+//         })
+//         .catch(error => {
+//           clearTimeout(timeoutId);
+//           throw error;
+//         });
+//     },
+//   },
+// });
+// --- End REMOVAL ---
 
 // Define the structure for the generated creative data (Same as generator)
 interface GeneratedCreative {

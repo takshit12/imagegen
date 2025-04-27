@@ -1,20 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../../supabase/supabase';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Palette, Sparkles } from 'lucide-react';
-
-// --- Supabase Client Initialization ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase URL or Anon Key is missing.");
-}
-
-const supabase = createClient(supabaseUrl!, supabaseAnonKey!);
-// --- End Supabase Client Initialization ---
 
 interface StyleTemplate {
   id: string;

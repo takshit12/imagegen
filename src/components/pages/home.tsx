@@ -28,6 +28,7 @@ import {
   Wand2,
   LogIn,
   Palette,
+  Film,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../supabase/auth";
@@ -174,6 +175,18 @@ function HomePageV2() {
                         {/* Icon removed */} Brand Style Duplicator {/* Text updated */}
                     </Link>
                 </Button>
+                {user && (
+                   <Button 
+                     asChild 
+                     size="lg"
+                     variant="outline"
+                     className="bg-white/5 hover:bg-white/10 border-white/40 backdrop-blur-sm px-8 py-3 text-base"
+                   >
+                      <Link to="/lipsync">
+                          <Film className="mr-2 h-5 w-5" /> Lipsync Video
+                      </Link>
+                  </Button>
+                )}
             </div>
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,42 +29,8 @@ import {
 } from "lucide-react";
 import CreativePreview from "@/components/generator/CreativePreview";
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from "@supabase/supabase-js";
 import { InspirationDropZone } from "@/components/generator/InspirationDropZone";
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Supabase URL or Anon Key is missing. Please check your environment variables (.env)."
-  );
-  throw new Error("Supabase configuration missing in environment variables.");
-}
-
-// Add timeout option during client initialization
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: {
-    fetch: (input, init) => {
-      // Increase timeout to 5 minutes (300,000 ms)
-      const timeout = 300000;
-      const controller = new AbortController();
-      const signal = controller.signal;
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      return fetch(input, { ...init, signal })
-        .then(response => {
-          clearTimeout(timeoutId);
-          return response;
-        })
-        .catch(error => {
-          clearTimeout(timeoutId);
-          // Re-throw client-side fetch errors (like network errors or the abort error)
-          throw error;
-        });
-    },
-  },
-});
+import { supabase } from "../../../supabase/supabase";
 
 interface GeneratedCreative {
   id: string;
@@ -74,6 +40,14 @@ interface GeneratedCreative {
   style: string;
   variation: number;
   audience: string;
+}
+
+interface InspirationDropZoneProps {
+  inspirationImages: GeneratedCreative[];
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+  onRemoveImage: (idToRemove: string) => void;
+  onUploadClick: () => void;
 }
 
 export default function Generator() {
@@ -90,6 +64,7 @@ export default function Generator() {
     includeProductImage: false,
     productImageUrl: "",
   });
+  const inspirationFileRef = useRef<HTMLInputElement>(null);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -256,6 +231,40 @@ Desired Visual Style: "${formData.style}"`;
 
   const removeInspirationImage = (idToRemove: string) => {
     setInspirationImages((prev) => prev.filter(img => img.id !== idToRemove));
+  };
+
+  const handleInspirationUploadClick = () => {
+    inspirationFileRef.current?.click();
+  };
+
+  const handleInspirationDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const newImage: GeneratedCreative = {
+            id: Date.now().toString(),
+            b64_json: reader.result as string,
+            headline: "Uploaded Image",
+            description: file.name,
+            style: "inspiration",
+            variation: 0,
+            audience: "general",
+          };
+          setInspirationImages((prev) => [...prev, newImage]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        toast({
+          title: "Invalid File Type",
+          description: "Please drop an image file.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   return (
@@ -457,11 +466,48 @@ Desired Visual Style: "${formData.style}"`;
                   {generatedCreatives.length > 0 && !isGenerating && (
                     <InspirationDropZone
                       inspirationImages={inspirationImages}
-                      onDrop={handleDrop}
+                      onDrop={handleInspirationDrop}
                       onDragOver={handleDragOver}
                       onRemoveImage={removeInspirationImage}
+                      onUploadClick={handleInspirationUploadClick}
                     />
                   )}
+
+                  <div className="mb-4">
+                    <Label className="mb-2 block">Inspiration Image (Optional)</Label>
+                    <InspirationDropZone
+                      inspirationImages={inspirationImages}
+                      onDrop={handleInspirationDrop}
+                      onDragOver={handleDragOver}
+                      onRemoveImage={removeInspirationImage}
+                      onUploadClick={handleInspirationUploadClick}
+                    />
+                    <Input
+                      ref={inspirationFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                           const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const newImage: GeneratedCreative = {
+                              id: Date.now().toString(),
+                              b64_json: reader.result as string,
+                               headline: "Uploaded Image",
+                              description: file.name,
+                              style: "inspiration",
+                              variation: 0,
+                              audience: "general",
+                            };
+                            setInspirationImages((prev) => [...prev, newImage]);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </TabsContent>
