@@ -133,48 +133,107 @@ Desired Visual Style: "${formData.style}"`;
     // setInspirationImages([]);
 
     try {
-      const timeoutDuration = 60000;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
-
-      const { data, error } = await supabase.functions.invoke(
-        functionName, // Use the determined function name
-        {
-          body: requestBody, // Use the determined request body
+      // For edit-image, use direct fetch with better large payload handling
+      if (functionName === "edit-image") {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error("Supabase configuration missing.");
         }
-      );
+        
+        // Direct fetch with increased timeout 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 600000); // 10-minute timeout
+        
+        const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
 
-      if (error) {
-        if (error.message.includes('aborted')) {
-           throw new Error(`Function invocation timed out after ${timeoutDuration / 1000} seconds.`);
-        } else {
-           throw new Error(`Function invocation error: ${error.message}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Edge function error response:", response.status, errorText);
+          throw new Error(`Function invocation failed with status ${response.status}: ${errorText}`);
         }
+        
+        const data = await response.json();
+        
+        if (!data || !data.images || !Array.isArray(data.images)) {
+          console.error("Invalid response structure from edge function:", data);
+          throw new Error("Received invalid data structure from the generator function.");
+        }
+
+        const newCreatives: GeneratedCreative[] = data.images.map(
+          (b64: string, index: number) => ({
+            id: `creative-${Date.now()}-${index}`,
+            headline: formData.headline,
+            description: formData.description,
+            audience: formData.audience,
+            style: formData.style,
+            variation: index + 1,
+            b64_json: b64,
+          })
+        );
+
+        setGeneratedCreatives(newCreatives);
+
+        toast({
+          title: "Creatives Generated",
+          description: `Successfully created ${newCreatives.length} ad variations.`,
+        });
+      } else {
+        // For standard image generator, use the original approach
+        const timeoutDuration = 60000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+
+        const { data, error } = await supabase.functions.invoke(
+          functionName, // Use the determined function name
+          {
+            body: requestBody, // Use the determined request body
+          }
+        );
+
+        if (error) {
+          if (error.message.includes('aborted')) {
+             throw new Error(`Function invocation timed out after ${timeoutDuration / 1000} seconds.`);
+          } else {
+             throw new Error(`Function invocation error: ${error.message}`);
+          }
+        }
+
+        if (!data || !data.images || !Array.isArray(data.images)) {
+          console.error("Invalid response structure from edge function:", data);
+          throw new Error("Received invalid data structure from the generator function.");
+        }
+
+        const newCreatives: GeneratedCreative[] = data.images.map(
+          (b64: string, index: number) => ({
+            id: `creative-${Date.now()}-${index}`,
+            headline: formData.headline,
+            description: formData.description,
+            audience: formData.audience,
+            style: formData.style,
+            variation: index + 1,
+            b64_json: b64,
+          })
+        );
+
+        setGeneratedCreatives(newCreatives);
+
+        toast({
+          title: "Creatives Generated",
+          description: `Successfully created ${newCreatives.length} ad variations.`,
+        });
       }
-
-      if (!data || !data.images || !Array.isArray(data.images)) {
-        console.error("Invalid response structure from edge function:", data);
-        throw new Error("Received invalid data structure from the generator function.");
-      }
-
-      const newCreatives: GeneratedCreative[] = data.images.map(
-        (b64: string, index: number) => ({
-          id: `creative-${Date.now()}-${index}`,
-          headline: formData.headline,
-          description: formData.description,
-          audience: formData.audience,
-          style: formData.style,
-          variation: index + 1,
-          b64_json: b64,
-        })
-      );
-
-      setGeneratedCreatives(newCreatives);
-
-      toast({
-        title: "Creatives Generated",
-        description: `Successfully created ${newCreatives.length} ad variations.`,
-      });
     } catch (error: any) {
       console.error("Generation failed:", error);
       toast({

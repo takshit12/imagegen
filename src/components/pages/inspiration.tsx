@@ -214,20 +214,37 @@ export default function BrandStyleDuplicator() {
     setGeneratedCreatives([]);
 
     try {
-      // Note: The Supabase client in supabase.ts now has a 5-minute timeout configured
-      const { data, error } = await supabase.functions.invoke(
-        functionName,
-        { body: requestBody } 
-      );
-
-      if (error) {
-        console.error("Edge function error:", error);
-        if (error.message.includes('aborted') || error.message.includes('timed out')) {
-           throw new Error(`Function invocation timed out. The image generation may be too complex or the server is busy.`);
-        } else {
-           throw new Error(`Function invocation error: ${error.message}`);
-        }
+      // Instead of using supabase.functions.invoke, use a custom fetch to have more control
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error("Supabase configuration missing.");
       }
+      
+      // Direct fetch with increased timeout and better handling for large payloads
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10-minute timeout
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Edge function error response:", response.status, errorText);
+        throw new Error(`Function invocation failed with status ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
 
       if (!data) {
         console.error("[handleGenerate] No data received from edge function");
