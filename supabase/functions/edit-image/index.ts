@@ -128,16 +128,66 @@ serve(async (req)=>{
     }
     const imageB64List = responseData.data.map((item)=>item.b64_json);
     console.log(`Successfully generated ${imageB64List.length} images using inspiration.`);
-    // --- Send Response back to Frontend ---
-    return new Response(JSON.stringify({
-      images: imageB64List
-    }), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json"
-      },
-      status: 200
-    });
+
+    // === NEW: Upload images to Supabase Storage and return signed URLs ===
+    try {
+      // Lazy import to avoid bundle size if not used elsewhere
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+
+      const supabaseUrl = getEnvVar('SUPABASE_URL');
+      const serviceRoleKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
+
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+      // Extract user id from JWT if provided, else use 'anonymous'
+      let uid = 'anonymous';
+      const authHeader = req.headers.get('authorization') || '';
+      if (authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.slice(7);
+          const [, payload] = token.split('.');
+          const jsonPayload = JSON.parse(atob(payload));
+          uid = jsonPayload.sub || jsonPayload.user_id || 'anonymous';
+        } catch (_) {
+          // ignore decoding errors
+        }
+      }
+
+      const execId = crypto.randomUUID();
+      const signedUrls: string[] = [];
+
+      for (let i = 0; i < imageB64List.length; i++) {
+        const filePath = `${uid}/${execId}/${i}.png`;
+        const fileBytes = Uint8Array.from(atob(imageB64List[i]), c=>c.charCodeAt(0));
+
+        // Upload (overwriting if exists just in case)
+        const { error: uploadErr } = await supabaseAdmin.storage
+          .from('generated-images')
+          .upload(filePath, fileBytes, { contentType: 'image/png', upsert: true });
+        if (uploadErr) throw uploadErr;
+
+        // Create 1-hour signed URL
+        const { data: signed, error: signErr } = await supabaseAdmin.storage
+          .from('generated-images')
+          .createSignedUrl(filePath, 60 * 60);
+        if (signErr) throw signErr;
+
+        signedUrls.push(signed.signedUrl);
+      }
+
+      // --- Send Response back to Frontend ---
+      return new Response(JSON.stringify({ images: signedUrls }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    } catch (storageErr) {
+      console.error('Storage upload/sign error, falling back to base64:', storageErr);
+      // Fallback: return base64 if storage fails (keeps old behaviour)
+      return new Response(JSON.stringify({ images: imageB64List }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
   } catch (error) {
     console.error("Function Error:", error);
     if (error instanceof Error && error.stack) {

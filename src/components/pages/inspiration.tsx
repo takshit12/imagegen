@@ -71,7 +71,8 @@ interface GeneratedCreative {
   id: string;
   headline: string;
   description: string;
-  b64_json: string;
+  b64_json?: string;
+  imageUrl?: string;
   style: string;
   variation: number;
   audience: string;
@@ -226,11 +227,14 @@ export default function BrandStyleDuplicator() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 600000); // 10-minute timeout
       
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || supabaseAnonKey;
+
       const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal
@@ -259,17 +263,15 @@ export default function BrandStyleDuplicator() {
       console.log(`[handleGenerate] Received ${data.images.length} base64 images.`);
 
       // Map results - Use the input prompt for headline context in preview
-      const newCreatives: GeneratedCreative[] = data.images.map(
-        (b64: string, index: number) => ({
-          id: `creative-${Date.now()}-${index}`,
-          headline: formData.prompt.substring(0, 50) + (formData.prompt.length > 50 ? '...' : ''), // Use input prompt for preview title
-          description: "Generated based on inspiration", // Generic description
-          audience: "", // Blank
-          style: "inspired", // Indicate source
-          variation: index + 1,
-          b64_json: b64,
-        })
-      );
+      const newCreatives: GeneratedCreative[] = data.images.map((url: string, index: number) => ({
+        id: `creative-${Date.now()}-${index}`,
+        headline: formData.prompt.substring(0, 50) + (formData.prompt.length > 50 ? '...' : ''),
+        description: 'Generated based on inspiration',
+        audience: '',
+        style: 'inspired',
+        variation: index + 1,
+        imageUrl: url,
+      }));
       console.log("[handleGenerate] Mapped creatives:", newCreatives);
 
       setGeneratedCreatives(newCreatives);

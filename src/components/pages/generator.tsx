@@ -36,10 +36,11 @@ interface GeneratedCreative {
   id: string;
   headline: string;
   description: string;
-  b64_json: string;
+  b64_json?: string;
   style: string;
   variation: number;
   audience: string;
+  imageUrl?: string;
 }
 
 interface InspirationDropZoneProps {
@@ -171,17 +172,15 @@ Desired Visual Style: "${formData.style}"`;
           throw new Error("Received invalid data structure from the generator function.");
         }
 
-        const newCreatives: GeneratedCreative[] = data.images.map(
-          (b64: string, index: number) => ({
-            id: `creative-${Date.now()}-${index}`,
-            headline: formData.headline,
-            description: formData.description,
-            audience: formData.audience,
-            style: formData.style,
-            variation: index + 1,
-            b64_json: b64,
-          })
-        );
+        const newCreatives: GeneratedCreative[] = data.images.map((url: string, index: number) => ({
+          id: `creative-${Date.now()}-${index}`,
+          headline: formData.headline,
+          description: formData.description,
+          audience: formData.audience,
+          style: formData.style,
+          variation: index + 1,
+          imageUrl: url,
+        }));
 
         setGeneratedCreatives(newCreatives);
 

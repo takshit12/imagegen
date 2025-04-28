@@ -9,7 +9,8 @@ interface CreativeProps {
     id: string;
     headline: string;
     description: string;
-    b64_json: string;
+    b64_json?: string;
+    imageUrl?: string;
     style: string;
     variation: number;
   };
@@ -18,7 +19,9 @@ interface CreativeProps {
 export default function CreativePreview({ creative }: CreativeProps) {
   const [isFavorite, setIsFavorite] = useState(false);
 
-  const imageSrc = `data:image/png;base64,${creative.b64_json}`;
+  const imageSrc = creative.imageUrl
+    ? creative.imageUrl
+    : `data:image/png;base64,${creative.b64_json}`;
 
   // Function to handle downloading the individual image
   const handleDownload = () => {
