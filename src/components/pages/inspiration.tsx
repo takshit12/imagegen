@@ -214,22 +214,29 @@ export default function BrandStyleDuplicator() {
     setGeneratedCreatives([]);
 
     try {
+      // Note: The Supabase client in supabase.ts now has a 5-minute timeout configured
       const { data, error } = await supabase.functions.invoke(
         functionName,
         { body: requestBody } 
       );
 
       if (error) {
-        if (error.message.includes('aborted')) {
-           throw new Error(`Function invocation timed out after 300 seconds.`); // Keep long timeout
+        console.error("Edge function error:", error);
+        if (error.message.includes('aborted') || error.message.includes('timed out')) {
+           throw new Error(`Function invocation timed out. The image generation may be too complex or the server is busy.`);
         } else {
            throw new Error(`Function invocation error: ${error.message}`);
         }
       }
 
-      if (!data || !data.images || !Array.isArray(data.images)) {
+      if (!data) {
+        console.error("[handleGenerate] No data received from edge function");
+        throw new Error("No data received from the generator function.");
+      }
+
+      if (!data.images || !Array.isArray(data.images) || data.images.length === 0) {
         console.error("[handleGenerate] Invalid response structure:", data);
-        throw new Error("Received invalid data structure from the generator function.");
+        throw new Error("Received invalid or empty data structure from the generator function.");
       }
 
       console.log(`[handleGenerate] Received ${data.images.length} base64 images.`);
