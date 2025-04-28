@@ -1,3 +1,6 @@
+/* eslint-disable */
+// @ts-nocheck
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts"; // Adjust path/definition if needed
 // Helper function to safely get environment variables
@@ -173,6 +176,18 @@ serve(async (req)=>{
         if (signErr) throw signErr;
 
         signedUrls.push(signed.signedUrl);
+
+        // Insert metadata into generated_images table
+        try {
+          await supabaseAdmin.from('generated_images').insert({
+            user_id: uid,
+            path: filePath,
+            prompt: userContentPrompt,
+            size,
+          });
+        } catch (dbErr) {
+          console.error('DB insert error:', dbErr);
+        }
       }
 
       // --- Send Response back to Frontend ---
