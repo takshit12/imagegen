@@ -25,11 +25,13 @@ import {
   Sparkles,
   Loader2,
   Lightbulb, // Icon for inspiration
+  Grid3x3,
 } from "lucide-react";
 import CreativePreview from "../generator/CreativePreview"; // Re-use preview
 import { useToast } from "@/components/ui/use-toast";
 import { InspirationDropZone } from "../generator/InspirationDropZone"; // Re-use drop zone
 import { supabase } from "../../../supabase/supabase"; // <-- ADD THIS IMPORT (adjust path if needed)
+import GalleryView from "../history/GalleryView";
 
 // --- REMOVE Supabase Client Initialization (Same as generator) ---
 // const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -71,7 +73,7 @@ interface GeneratedCreative {
   id: string;
   headline: string;
   description: string;
-  b64_json?: string;
+  b64_json: string; // Making this required to match InspirationDropZone
   imageUrl?: string;
   style: string;
   variation: number;
@@ -81,6 +83,7 @@ interface GeneratedCreative {
 // --- Renamed Component: BrandStyleDuplicator --- 
 export default function BrandStyleDuplicator() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("generator");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedCreatives, setGeneratedCreatives] = useState<GeneratedCreative[]>([]);
   const [inspirationImages, setInspirationImages] = useState<GeneratedCreative[]>([]); 
@@ -383,143 +386,164 @@ export default function BrandStyleDuplicator() {
             </p>
           </div>
 
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-              {/* Column 1: Inputs & Inspiration Drop Zone */}
-              <div className="lg:col-span-1 flex flex-col gap-8">
-                {/* Input Form Card - Borderless */}
-                <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
-                  <CardContent className="p-6">
-                     <h3 className="text-lg font-semibold mb-5 text-white">New Image Details</h3>
-                     <div className="space-y-5">
-                       {/* Main Prompt Input */}
-                       <div className="space-y-2">
-                         <Label htmlFor="prompt" className="text-sm font-medium text-gray-200">Prompt for New Image</Label>
-                         <Textarea 
-                            id="prompt"
-                            name="prompt" 
-                            placeholder="Describe the content of the new image..." 
-                            rows={4} 
-                            value={formData.prompt} 
-                            onChange={handleInputChange} 
-                            className="bg-white/5 border-0 placeholder-gray-400/60 focus-visible:ring-1 focus-visible:ring-white/50 text-white rounded-md"
-                         />
-                       </div>
-                       
-                       {/* Removed Description & Audience TextAreas */}
-                       {/* Removed Style Select */}
+          <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="flex justify-center mb-8">
+              <TabsList className="inline-flex h-auto items-center justify-center rounded-lg bg-white/5 backdrop-blur-md p-1 text-gray-400">
+                <TabsTrigger value="generator" className="px-4 py-2 text-sm data-[state=active]:text-white data-[state=active]:bg-white/10 rounded-md transition-colors flex items-center gap-2">
+                  <Sparkles size={16} />
+                  Generator
+                </TabsTrigger>
+                <TabsTrigger value="gallery" className="px-4 py-2 text-sm data-[state=active]:text-white data-[state=active]:bg-white/10 rounded-md transition-colors flex items-center gap-2">
+                  <Grid3x3 size={16} />
+                  Gallery
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-                      {/* Resolution Selector */}
-                      <div className="space-y-2 pt-2">
-                          <Label htmlFor="size" className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                             <ImageIcon className="h-4 w-4 text-gray-400 inline" /> Output Resolution
-                          </Label>
-                          <Select name="size" value={formData.size} onValueChange={(value) => handleOptionChange("size", value)}>
-                            <SelectTrigger id="size" className="bg-white/5 border-0 text-white focus:ring-1 focus:ring-white/50 rounded-md w-full justify-start">
-                              <SelectValue placeholder="Select resolution" />
-                            </SelectTrigger>
-                             <SelectContent className="bg-black/80 backdrop-blur-md border-white/20 text-gray-200 mt-1 border-0 shadow-xl rounded-md">
-                               <SelectItem value="auto" className="focus:bg-white/10 focus:text-white rounded">Auto (Default)</SelectItem>
-                               <SelectItem value="1024x1024" className="focus:bg-white/10 focus:text-white rounded">1024x1024 (Square)</SelectItem>
-                               <SelectItem value="1536x1024" className="focus:bg-white/10 focus:text-white rounded">1536x1024 (Landscape)</SelectItem>
-                               <SelectItem value="1024x1536" className="focus:bg-white/10 focus:text-white rounded">1024x1536 (Portrait)</SelectItem>
-                             </SelectContent>
-                          </Select>
-                      </div>
-                       {/* Variations Slider */}
-                       <div className="space-y-3 pt-2">
-                         <div className="flex justify-between items-center text-sm mb-1">
-                          <Label htmlFor="variations" className="text-gray-200 flex items-center gap-2">
-                             <Sparkles className="h-4 w-4 text-gray-400 inline" /> Number of Variations
-                           </Label>
-                           <span className="font-medium text-gray-200 pr-1">{formData.variations}</span>
-                         </div>
-                         <Slider id="variations" min={1} max={10} step={1} value={[formData.variations]} onValueChange={handleSliderChange} className="[&>span:first-child]:h-1 [&>span:first-child>span]:bg-indigo-400 [&>span:last-child]:bg-white/15 [&>span:last-child]:h-1 [&>span:last-child>span]:bg-white [&>span:last-child>span]:border-0 [&>span:last-child>span]:shadow-md [&>span:last-child>span]:h-3 [&>span:last-child>span]:w-3 [&>span:last-child>span]:mt-[-3px]" />
-                       </div>
-                     </div>
-                   </CardContent>
-                </Card>
-
-                {/* Hidden File Input */} 
-                <input 
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                />
-
-                {/* Inspiration Drop Zone (Pass upload trigger) */}
-                <InspirationDropZone
-                  inspirationImages={inspirationImages}
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onRemoveImage={removeInspirationImage}
-                  onUploadClick={triggerFileInput} // Pass the trigger function
-                />
-
-                 {/* Generate Button - Classy */} 
-                <div className="mt-0 flex justify-center"> {/* Adjusted margin */}
-                    <Button
-                      size="lg"
-                      onClick={handleGenerate}
-                      disabled={isGenerating || inspirationImages.length === 0 || !formData.prompt} // Also disable if prompt is empty
-                      className="w-full bg-white text-black hover:bg-gray-200 disabled:opacity-40 disabled:bg-gray-500 font-semibold text-base rounded-lg shadow-lg hover:shadow-gray-300/30 transition-all duration-300"
-                    >
-                      {isGenerating ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
-                      ) : (
-                        <><Sparkles className="mr-2 h-4 w-4" /> Generate Inspired Creatives</>
-                      )}
-                    </Button>
-                </div>
-              </div>
-
-              {/* Column 2: Results Area - Styled */}
-              <div className="lg:col-span-2">
-                {/* Loading State - Borderless */}
-                {isGenerating && (
-                  <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
-                    <Loader2 className="h-12 w-12 text-gray-400 animate-spin mb-4" />
-                    <p className="font-medium text-lg">Generating inspired creatives...</p>
-                    <p className="text-sm text-gray-400">This may take a moment.</p>
-                  </div>
-                )}
-
-                {/* Results Display - Borderless */}
-                {!isGenerating && generatedCreatives.length > 0 && (
-                   <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
+            <TabsContent value="generator" className="mt-6">
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                {/* Column 1: Inputs & Inspiration Drop Zone */}
+                <div className="lg:col-span-1 flex flex-col gap-8">
+                  {/* Input Form Card - Borderless */}
+                  <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
                     <CardContent className="p-6">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-semibold text-white">Generated Creatives</h3>
-                        <div className="space-x-2">
-                          {/* Classy Buttons */}
-                          <Button variant="outline" size="sm" onClick={() => handleExport("PNG")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Download className="mr-1 h-4 w-4" /> Export All</Button>
-                          <Button variant="outline" size="sm" onClick={() => handleExport("Share")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Share2 className="mr-1 h-4 w-4" /> Share </Button>
+                      <h3 className="text-lg font-semibold mb-5 text-white">New Image Details</h3>
+                      <div className="space-y-5">
+                        {/* Main Prompt Input */}
+                        <div className="space-y-2">
+                          <Label htmlFor="prompt" className="text-sm font-medium text-gray-200">Prompt for New Image</Label>
+                          <Textarea 
+                              id="prompt"
+                              name="prompt" 
+                              placeholder="Describe the content of the new image..." 
+                              rows={4} 
+                              value={formData.prompt} 
+                              onChange={handleInputChange} 
+                              className="bg-white/5 border-0 placeholder-gray-400/60 focus-visible:ring-1 focus-visible:ring-white/50 text-white rounded-md"
+                          />
+                        </div>
+                        
+                        {/* Removed Description & Audience TextAreas */}
+                        {/* Removed Style Select */}
+
+                        {/* Resolution Selector */}
+                        <div className="space-y-2 pt-2">
+                            <Label htmlFor="size" className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                              <ImageIcon className="h-4 w-4 text-gray-400 inline" /> Output Resolution
+                            </Label>
+                            <Select name="size" value={formData.size} onValueChange={(value) => handleOptionChange("size", value)}>
+                              <SelectTrigger id="size" className="bg-white/5 border-0 text-white focus:ring-1 focus:ring-white/50 rounded-md w-full justify-start">
+                                <SelectValue placeholder="Select resolution" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-black/80 backdrop-blur-md border-white/20 text-gray-200 mt-1 border-0 shadow-xl rounded-md">
+                                <SelectItem value="auto" className="focus:bg-white/10 focus:text-white rounded">Auto (Default)</SelectItem>
+                                <SelectItem value="1024x1024" className="focus:bg-white/10 focus:text-white rounded">1024x1024 (Square)</SelectItem>
+                                <SelectItem value="1536x1024" className="focus:bg-white/10 focus:text-white rounded">1536x1024 (Landscape)</SelectItem>
+                                <SelectItem value="1024x1536" className="focus:bg-white/10 focus:text-white rounded">1024x1536 (Portrait)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                        </div>
+                        {/* Variations Slider */}
+                        <div className="space-y-3 pt-2">
+                          <div className="flex justify-between items-center text-sm mb-1">
+                            <Label htmlFor="variations" className="text-gray-200 flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-gray-400 inline" /> Number of Variations
+                            </Label>
+                            <span className="font-medium text-gray-200 pr-1">{formData.variations}</span>
+                          </div>
+                          <Slider id="variations" min={1} max={10} step={1} value={[formData.variations]} onValueChange={handleSliderChange} className="[&>span:first-child]:h-1 [&>span:first-child>span]:bg-indigo-400 [&>span:last-child]:bg-white/15 [&>span:last-child]:h-1 [&>span:last-child>span]:bg-white [&>span:last-child>span]:border-0 [&>span:last-child>span]:shadow-md [&>span:last-child>span]:h-3 [&>span:last-child>span]:w-3 [&>span:last-child>span]:mt-[-3px]" />
                         </div>
                       </div>
-                      <ScrollArea className="h-[calc(100vh-240px)] pr-1"> {/* Adjusted height */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
-                          {generatedCreatives.map((creative) => (
-                            <CreativePreview key={creative.id} creative={creative} />
-                          ))}
-                        </div>
-                      </ScrollArea>
                     </CardContent>
                   </Card>
-                )}
 
-                {/* Placeholder - Borderless */}
-                {!isGenerating && generatedCreatives.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
-                    <ImageIcon className="h-12 w-12 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-200">Generated creatives will appear here</h3>
-                    <p className="mt-1 text-sm text-gray-400 px-4">Add inspiration images, describe the new content, and click 'Generate'.</p>
+                  {/* Hidden File Input */} 
+                  <input 
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                  />
+
+                  {/* Inspiration Drop Zone (Pass upload trigger) */}
+                  <InspirationDropZone
+                    inspirationImages={inspirationImages}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onRemoveImage={removeInspirationImage}
+                    onUploadClick={triggerFileInput} // Pass the trigger function
+                  />
+
+                  {/* Generate Button - Classy */} 
+                  <div className="mt-0 flex justify-center"> {/* Adjusted margin */}
+                      <Button
+                        size="lg"
+                        onClick={handleGenerate}
+                        disabled={isGenerating || inspirationImages.length === 0 || !formData.prompt} // Also disable if prompt is empty
+                        className="w-full bg-white text-black hover:bg-gray-200 disabled:opacity-40 disabled:bg-gray-500 font-semibold text-base rounded-lg shadow-lg hover:shadow-gray-300/30 transition-all duration-300"
+                      >
+                        {isGenerating ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
+                        ) : (
+                          <><Sparkles className="mr-2 h-4 w-4" /> Generate Inspired Creatives</>
+                        )}
+                      </Button>
                   </div>
-                )}
+                </div>
+
+                {/* Column 2: Results Area - Styled */}
+                <div className="lg:col-span-2">
+                  {/* Loading State - Borderless */}
+                  {isGenerating && (
+                    <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
+                      <Loader2 className="h-12 w-12 text-gray-400 animate-spin mb-4" />
+                      <p className="font-medium text-lg">Generating inspired creatives...</p>
+                      <p className="text-sm text-gray-400">This may take a moment.</p>
+                    </div>
+                  )}
+
+                  {/* Results Display - Borderless */}
+                  {!isGenerating && generatedCreatives.length > 0 && (
+                    <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-xl font-semibold text-white">Generated Creatives</h3>
+                          <div className="space-x-2">
+                            {/* Classy Buttons */}
+                            <Button variant="outline" size="sm" onClick={() => handleExport("PNG")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Download className="mr-1 h-4 w-4" /> Export All</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleExport("Share")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Share2 className="mr-1 h-4 w-4" /> Share </Button>
+                          </div>
+                        </div>
+                        <ScrollArea className="h-[calc(100vh-240px)] pr-1"> {/* Adjusted height */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
+                            {generatedCreatives.map((creative) => (
+                              <CreativePreview key={creative.id} creative={creative} />
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Placeholder - Borderless */}
+                  {!isGenerating && generatedCreatives.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
+                      <ImageIcon className="h-12 w-12 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-200">Generated creatives will appear here</h3>
+                      <p className="mt-1 text-sm text-gray-400 px-4">Add inspiration images, describe the new content, and click 'Generate'.</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div> 
+            </TabsContent>
+
+            <TabsContent value="gallery" className="mt-6">
+              <GalleryView />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
