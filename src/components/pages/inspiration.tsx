@@ -187,10 +187,8 @@ export default function BrandStyleDuplicator() {
       fileInputRef.current?.click();
   };
 
-  // --- Modified handleGenerate for Style Replication ---
+  // --- Modified handleGenerate for Style Replication using Job System ---
   const handleGenerate = async () => {
-    const functionName = "edit-image"; 
-
     // --- Validation: Require inspiration images and a prompt for the new content ---
     if (inspirationImages.length === 0) {
        toast({ title: "Inspiration Missing", description: "Please add at least one inspiration image.", variant: "destructive"});
@@ -203,100 +201,214 @@ export default function BrandStyleDuplicator() {
     // --- End Validation ---
 
     // --- Construct the prompt for Style Replication --- 
-    const editPrompt = `Analyze the visual style, color palette, typography (if any), composition, and overall aesthetic of the provided ${inspirationImages.length} image(s). Generate ${formData.variations} new image(s) that meticulously replicate this analyzed style. The new image(s) must depict the following content: "${formData.prompt}". Ensure the output style is highly consistent with the provided examples.`;
+    const stylePrompt = `Analyze the visual style, color palette, typography (if any), composition, and overall aesthetic of the provided ${inspirationImages.length} image(s). Generate ${formData.variations} new image(s) that meticulously replicate this analyzed style. The new image(s) must depict the following content: "${formData.prompt}". Ensure the output style is highly consistent with the provided examples.`;
+
+    // Now using job system instead of direct edit-image call
+    const jobFunctionName = "submit-style-job";
 
     const requestBody = {
-        prompt: editPrompt,
+        prompt: stylePrompt,
         inspirationImages: inspirationImages.map(img => img.b64_json),
         n: formData.variations,
-        size: formData.size === "auto" ? undefined : formData.size,
+        size: formData.size === "auto" ? "1024x1024" : formData.size, // Default to 1024x1024 if auto
     };
 
-    console.log(`Calling ${functionName} with ${inspirationImages.length} inspiration images and size ${formData.size}. Prompt: ${editPrompt}`);
+    console.log(`Submitting style job with ${inspirationImages.length} inspiration images and size ${formData.size}.`);
 
     setIsGenerating(true);
     setGeneratedCreatives([]);
 
     try {
-      // Instead of using supabase.functions.invoke, use a custom fetch to have more control
+      // Submit job to the job system
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
+
       if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error("Supabase configuration missing.");
       }
       
-      // Direct fetch with increased timeout and better handling for large payloads
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10-minute timeout
-      
+      // Get user session for authentication
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token || supabaseAnonKey;
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+      // Submit the job
+      const response = await fetch(`${supabaseUrl}/functions/v1/${jobFunctionName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
+        body: JSON.stringify(requestBody)
       });
-      
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Edge function error response:", response.status, errorText);
-        throw new Error(`Function invocation failed with status ${response.status}: ${errorText}`);
+        console.error("Job submission error:", response.status, errorText);
+        throw new Error(`Job submission failed with status ${response.status}: ${errorText}`);
       }
 
-      const data = await response.json();
-
-      if (!data) {
-        console.error("[handleGenerate] No data received from edge function");
-        throw new Error("No data received from the generator function.");
+      const jobData = await response.json();
+      
+      if (!jobData || !jobData.job_id) {
+        throw new Error("Invalid job response received");
       }
 
-      if (!data.images || !Array.isArray(data.images) || data.images.length === 0) {
-        console.error("[handleGenerate] Invalid response structure:", data);
-        throw new Error("Received invalid or empty data structure from the generator function.");
-      }
-
-      console.log(`[handleGenerate] Received ${data.images.length} base64 images.`);
-
-      // Map results - Use the input prompt for headline context in preview
-      const newCreatives: GeneratedCreative[] = data.images.map((url: string, index: number) => ({
-        id: `creative-${Date.now()}-${index}`,
-        headline: formData.prompt.substring(0, 50) + (formData.prompt.length > 50 ? '...' : ''),
-        description: 'Generated based on inspiration',
-        audience: '',
-        style: 'inspired',
-        variation: index + 1,
-        imageUrl: url,
-      }));
-      console.log("[handleGenerate] Mapped creatives:", newCreatives);
-
-      setGeneratedCreatives(newCreatives);
-      console.log("[handleGenerate] State updated with generated creatives.");
+      const jobId = jobData.job_id;
+      console.log(`Job submitted successfully. Job ID: ${jobId}`);
 
       toast({
-        title: "Inspired Creatives Generated",
-        description: `Successfully created ${newCreatives.length} ad variations based on inspiration.`,
+        title: "Job Submitted",
+        description: "Your image generation job has been submitted and is processing in the background.",
       });
+
+      // Start polling for job status
+      pollJobStatus(jobId);
+      
     } catch (error: any) {
-      console.error("Generation failed:", error);
+      console.error("Job submission failed:", error);
       toast({
-        title: "Generation Failed",
+        title: "Job Submission Failed",
         description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
-      setGeneratedCreatives([]);
-    } finally {
       setIsGenerating(false);
     }
   };
-  // --- End Modified handleGenerate ---
+
+  // New function to poll job status
+  const pollJobStatus = async (jobId: string) => {
+    const maxAttempts = 60; // Maximum number of polling attempts (10 minutes at 10-second intervals)
+    const pollInterval = 10000; // Poll every 10 seconds
+    let attempt = 0;
+    
+    const checkStatus = async () => {
+      try {
+        attempt++;
+        console.log(`Polling job status (attempt ${attempt}/${maxAttempts})...`);
+        
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        // Query the style_jobs table to check status
+        const { data: jobData, error } = await supabase
+          .from('style_jobs')
+          .select('*')
+          .eq('id', jobId)
+          .single();
+        
+        if (error) {
+          console.error("Error fetching job status:", error);
+          return false;
+        }
+        
+        if (!jobData) {
+          console.error("No job data found for ID:", jobId);
+          return false;
+        }
+        
+        console.log(`Job status: ${jobData.status}`);
+        
+        if (jobData.status === 'COMPLETED') {
+          // Job completed successfully
+          if (jobData.exec_id) {
+            // Fetch generated images using the execution ID
+            const { data: imageData, error: imageError } = await supabase
+              .from('generated_images')
+              .select('*')
+              .eq('exec_id', jobData.exec_id);
+            
+            if (imageError) {
+              console.error("Error fetching generated images:", imageError);
+              return true; // End polling but show error
+            }
+            
+            if (!imageData || imageData.length === 0) {
+              console.error("No generated images found for exec_id:", jobData.exec_id);
+              return true; // End polling but show error
+            }
+            
+            // Create signed URLs for all images
+            const signedResults = await Promise.all(
+              imageData.map(async (row, index) => {
+                try {
+                  const { data: signed } = await supabase.storage
+                    .from('generated-images')
+                    .createSignedUrl(row.path, 60 * 60);
+                    
+                  return {
+                    id: `job-${jobId}-${index}`,
+                    headline: formData.prompt.substring(0, 50) + (formData.prompt.length > 50 ? '...' : ''),
+                    description: 'Generated based on inspiration',
+                    audience: '',
+                    style: 'inspired',
+                    variation: index + 1,
+                    imageUrl: signed?.signedUrl,
+                    b64_json: '', // Empty string to satisfy the interface
+                  };
+                } catch (err) {
+                  console.error(`Error signing URL for ${row.path}:`, err);
+                  return null;
+                }
+              })
+            );
+            
+            // Filter out nulls (failed signs)
+            const validResults = signedResults.filter(Boolean);
+            
+            setGeneratedCreatives(validResults);
+            toast({
+              title: "Images Generated",
+              description: `Successfully created ${validResults.length} images based on your inspiration.`,
+            });
+          } else {
+            toast({
+              title: "Generation Complete",
+              description: "Job completed but no images were found.",
+              variant: "destructive",
+            });
+          }
+          
+          return true; // End polling
+        } else if (jobData.status === 'FAILED') {
+          // Job failed
+          toast({
+            title: "Generation Failed",
+            description: jobData.error_message || "The image generation job failed. Please try again.",
+            variant: "destructive",
+          });
+          return true; // End polling
+        } else if (attempt >= maxAttempts) {
+          // Exceeded max polling attempts
+          toast({
+            title: "Status Check Timeout",
+            description: "The image generation is still in progress. Check the Gallery tab later for results.",
+            variant: "default",
+          });
+          return true; // End polling
+        }
+        
+        // Continue polling
+        return false;
+      } catch (error) {
+        console.error("Error polling job status:", error);
+        return attempt >= maxAttempts; // Only stop if max attempts reached
+      }
+    };
+    
+    // Initial delay before first poll
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Poll until completion or timeout
+    while (true) {
+      const shouldStop = await checkStatus();
+      if (shouldStop) {
+        setIsGenerating(false);
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+  };
 
   // --- Drag/Drop Handlers (Update max images to 10) ---
    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -401,143 +513,154 @@ export default function BrandStyleDuplicator() {
             </div>
 
             <TabsContent value="generator" className="mt-6">
-              {/* Main Content Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Column 1: Inputs & Inspiration Drop Zone */}
-                <div className="lg:col-span-1 flex flex-col gap-8">
-                  {/* Input Form Card - Borderless */}
-                  <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
-                    <CardContent className="p-6">
-                      <h3 className="text-lg font-semibold mb-5 text-white">New Image Details</h3>
-                      <div className="space-y-5">
-                        {/* Main Prompt Input */}
-                        <div className="space-y-2">
-                          <Label htmlFor="prompt" className="text-sm font-medium text-gray-200">Prompt for New Image</Label>
-                          <Textarea 
-                              id="prompt"
-                              name="prompt" 
-                              placeholder="Describe the content of the new image..." 
-                              rows={4} 
-                              value={formData.prompt} 
-                              onChange={handleInputChange} 
-                              className="bg-white/5 border-0 placeholder-gray-400/60 focus-visible:ring-1 focus-visible:ring-white/50 text-white rounded-md"
-                          />
-                        </div>
-                        
-                        {/* Removed Description & Audience TextAreas */}
-                        {/* Removed Style Select */}
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+              {/* Column 1: Inputs & Inspiration Drop Zone */}
+              <div className="lg:col-span-1 flex flex-col gap-8">
+                {/* Input Form Card - Borderless */}
+                <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
+                  <CardContent className="p-6">
+                     <h3 className="text-lg font-semibold mb-5 text-white">New Image Details</h3>
+                     <div className="space-y-5">
+                       {/* Main Prompt Input */}
+                       <div className="space-y-2">
+                         <Label htmlFor="prompt" className="text-sm font-medium text-gray-200">Prompt for New Image</Label>
+                         <Textarea 
+                            id="prompt"
+                            name="prompt" 
+                            placeholder="Describe the content of the new image..." 
+                            rows={4} 
+                            value={formData.prompt} 
+                            onChange={handleInputChange} 
+                            className="bg-white/5 border-0 placeholder-gray-400/60 focus-visible:ring-1 focus-visible:ring-white/50 text-white rounded-md"
+                         />
+                       </div>
+                       
+                       {/* Removed Description & Audience TextAreas */}
+                       {/* Removed Style Select */}
 
-                        {/* Resolution Selector */}
-                        <div className="space-y-2 pt-2">
-                            <Label htmlFor="size" className="text-sm font-medium text-gray-200 flex items-center gap-2">
-                              <ImageIcon className="h-4 w-4 text-gray-400 inline" /> Output Resolution
-                            </Label>
-                            <Select name="size" value={formData.size} onValueChange={(value) => handleOptionChange("size", value)}>
-                              <SelectTrigger id="size" className="bg-white/5 border-0 text-white focus:ring-1 focus:ring-white/50 rounded-md w-full justify-start">
-                                <SelectValue placeholder="Select resolution" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-black/80 backdrop-blur-md border-white/20 text-gray-200 mt-1 border-0 shadow-xl rounded-md">
-                                <SelectItem value="auto" className="focus:bg-white/10 focus:text-white rounded">Auto (Default)</SelectItem>
-                                <SelectItem value="1024x1024" className="focus:bg-white/10 focus:text-white rounded">1024x1024 (Square)</SelectItem>
-                                <SelectItem value="1536x1024" className="focus:bg-white/10 focus:text-white rounded">1536x1024 (Landscape)</SelectItem>
-                                <SelectItem value="1024x1536" className="focus:bg-white/10 focus:text-white rounded">1024x1536 (Portrait)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                        </div>
-                        {/* Variations Slider */}
-                        <div className="space-y-3 pt-2">
-                          <div className="flex justify-between items-center text-sm mb-1">
-                            <Label htmlFor="variations" className="text-gray-200 flex items-center gap-2">
-                              <Sparkles className="h-4 w-4 text-gray-400 inline" /> Number of Variations
-                            </Label>
-                            <span className="font-medium text-gray-200 pr-1">{formData.variations}</span>
-                          </div>
-                          <Slider id="variations" min={1} max={10} step={1} value={[formData.variations]} onValueChange={handleSliderChange} className="[&>span:first-child]:h-1 [&>span:first-child>span]:bg-indigo-400 [&>span:last-child]:bg-white/15 [&>span:last-child]:h-1 [&>span:last-child>span]:bg-white [&>span:last-child>span]:border-0 [&>span:last-child>span]:shadow-md [&>span:last-child>span]:h-3 [&>span:last-child>span]:w-3 [&>span:last-child>span]:mt-[-3px]" />
-                        </div>
+                      {/* Resolution Selector */}
+                      <div className="space-y-2 pt-2">
+                          <Label htmlFor="size" className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                             <ImageIcon className="h-4 w-4 text-gray-400 inline" /> Output Resolution
+                          </Label>
+                          <Select name="size" value={formData.size} onValueChange={(value) => handleOptionChange("size", value)}>
+                            <SelectTrigger id="size" className="bg-white/5 border-0 text-white focus:ring-1 focus:ring-white/50 rounded-md w-full justify-start">
+                              <SelectValue placeholder="Select resolution" />
+                            </SelectTrigger>
+                             <SelectContent className="bg-black/80 backdrop-blur-md border-white/20 text-gray-200 mt-1 border-0 shadow-xl rounded-md">
+                               <SelectItem value="auto" className="focus:bg-white/10 focus:text-white rounded">Auto (Default)</SelectItem>
+                               <SelectItem value="1024x1024" className="focus:bg-white/10 focus:text-white rounded">1024x1024 (Square)</SelectItem>
+                               <SelectItem value="1536x1024" className="focus:bg-white/10 focus:text-white rounded">1536x1024 (Landscape)</SelectItem>
+                               <SelectItem value="1024x1536" className="focus:bg-white/10 focus:text-white rounded">1024x1536 (Portrait)</SelectItem>
+                             </SelectContent>
+                          </Select>
                       </div>
-                    </CardContent>
-                  </Card>
+                       {/* Variations Slider */}
+                       <div className="space-y-3 pt-2">
+                         <div className="flex justify-between items-center text-sm mb-1">
+                          <Label htmlFor="variations" className="text-gray-200 flex items-center gap-2">
+                             <Sparkles className="h-4 w-4 text-gray-400 inline" /> Number of Variations
+                           </Label>
+                           <span className="font-medium text-gray-200 pr-1">{formData.variations}</span>
+                         </div>
+                         <Slider id="variations" min={1} max={10} step={1} value={[formData.variations]} onValueChange={handleSliderChange} className="[&>span:first-child]:h-1 [&>span:first-child>span]:bg-indigo-400 [&>span:last-child]:bg-white/15 [&>span:last-child]:h-1 [&>span:last-child>span]:bg-white [&>span:last-child>span]:border-0 [&>span:last-child>span]:shadow-md [&>span:last-child>span]:h-3 [&>span:last-child>span]:w-3 [&>span:last-child>span]:mt-[-3px]" />
+                       </div>
+                     </div>
+                   </CardContent>
+                </Card>
 
-                  {/* Hidden File Input */} 
-                  <input 
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      multiple
-                      accept="image/*"
-                      className="hidden"
-                  />
+                {/* Hidden File Input */} 
+                <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                />
 
-                  {/* Inspiration Drop Zone (Pass upload trigger) */}
-                  <InspirationDropZone
-                    inspirationImages={inspirationImages}
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onRemoveImage={removeInspirationImage}
-                    onUploadClick={triggerFileInput} // Pass the trigger function
-                  />
+                {/* Inspiration Drop Zone (Pass upload trigger) */}
+                <InspirationDropZone
+                  inspirationImages={inspirationImages}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onRemoveImage={removeInspirationImage}
+                  onUploadClick={triggerFileInput} // Pass the trigger function
+                />
 
-                  {/* Generate Button - Classy */} 
-                  <div className="mt-0 flex justify-center"> {/* Adjusted margin */}
-                      <Button
-                        size="lg"
-                        onClick={handleGenerate}
-                        disabled={isGenerating || inspirationImages.length === 0 || !formData.prompt} // Also disable if prompt is empty
-                        className="w-full bg-white text-black hover:bg-gray-200 disabled:opacity-40 disabled:bg-gray-500 font-semibold text-base rounded-lg shadow-lg hover:shadow-gray-300/30 transition-all duration-300"
-                      >
-                        {isGenerating ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
-                        ) : (
-                          <><Sparkles className="mr-2 h-4 w-4" /> Generate Inspired Creatives</>
-                        )}
-                      </Button>
-                  </div>
-                </div>
-
-                {/* Column 2: Results Area - Styled */}
-                <div className="lg:col-span-2">
-                  {/* Loading State - Borderless */}
-                  {isGenerating && (
-                    <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
-                      <Loader2 className="h-12 w-12 text-gray-400 animate-spin mb-4" />
-                      <p className="font-medium text-lg">Generating inspired creatives...</p>
-                      <p className="text-sm text-gray-400">This may take a moment.</p>
+                 {/* Generate Button - Classy */} 
+                  <div className="mt-0 flex flex-col gap-3">
+                    <div className="p-3 bg-indigo-500/10 rounded-lg text-xs text-gray-300">
+                      <p className="flex items-center mb-1">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-medium">Background Processing</span>
+                      </p>
+                      <p>Style duplication jobs run in the background. You can safely navigate away and check the Gallery tab later to see results.</p>
                     </div>
-                  )}
-
-                  {/* Results Display - Borderless */}
-                  {!isGenerating && generatedCreatives.length > 0 && (
-                    <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
-                      <CardContent className="p-6">
-                        <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-xl font-semibold text-white">Generated Creatives</h3>
-                          <div className="space-x-2">
-                            {/* Classy Buttons */}
-                            <Button variant="outline" size="sm" onClick={() => handleExport("PNG")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Download className="mr-1 h-4 w-4" /> Export All</Button>
-                            <Button variant="outline" size="sm" onClick={() => handleExport("Share")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Share2 className="mr-1 h-4 w-4" /> Share </Button>
-                          </div>
-                        </div>
-                        <ScrollArea className="h-[calc(100vh-240px)] pr-1"> {/* Adjusted height */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
-                            {generatedCreatives.map((creative) => (
-                              <CreativePreview key={creative.id} creative={creative} />
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Placeholder - Borderless */}
-                  {!isGenerating && generatedCreatives.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
-                      <ImageIcon className="h-12 w-12 text-gray-400 mb-4" />
-                      <h3 className="text-lg font-medium text-gray-200">Generated creatives will appear here</h3>
-                      <p className="mt-1 text-sm text-gray-400 px-4">Add inspiration images, describe the new content, and click 'Generate'.</p>
-                    </div>
-                  )}
+                    
+                    <Button
+                      size="lg"
+                      onClick={handleGenerate}
+                      disabled={isGenerating || inspirationImages.length === 0 || !formData.prompt} // Also disable if prompt is empty
+                      className="w-full bg-white text-black hover:bg-gray-200 disabled:opacity-40 disabled:bg-gray-500 font-semibold text-base rounded-lg shadow-lg hover:shadow-gray-300/30 transition-all duration-300"
+                    >
+                      {isGenerating ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                      ) : (
+                        <><Sparkles className="mr-2 h-4 w-4" /> Generate Inspired Creatives</>
+                      )}
+                    </Button>
                 </div>
               </div>
+
+              {/* Column 2: Results Area - Styled */}
+              <div className="lg:col-span-2">
+                {/* Loading State - Borderless */}
+                {isGenerating && (
+                  <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
+                    <Loader2 className="h-12 w-12 text-gray-400 animate-spin mb-4" />
+                      <p className="font-medium text-lg">Processing your request</p>
+                      <p className="text-sm text-gray-400 mt-2">Your image generation job is now processing in the background.</p>
+                      <p className="text-sm text-gray-400 mt-3">You can check the Gallery tab at any time to see completed images.</p>
+                  </div>
+                )}
+
+                {/* Results Display - Borderless */}
+                {!isGenerating && generatedCreatives.length > 0 && (
+                   <Card className="bg-white/5 backdrop-blur-xl shadow-2xl rounded-xl border-0 text-gray-200">
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-semibold text-white">Generated Creatives</h3>
+                        <div className="space-x-2">
+                          {/* Classy Buttons */}
+                          <Button variant="outline" size="sm" onClick={() => handleExport("PNG")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Download className="mr-1 h-4 w-4" /> Export All</Button>
+                          <Button variant="outline" size="sm" onClick={() => handleExport("Share")} className="bg-white/5 hover:bg-white/10 border-0 text-gray-300 backdrop-blur-sm text-xs px-3 py-1.5 rounded-md"> <Share2 className="mr-1 h-4 w-4" /> Share </Button>
+                        </div>
+                      </div>
+                      <ScrollArea className="h-[calc(100vh-240px)] pr-1"> {/* Adjusted height */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
+                          {generatedCreatives.map((creative) => (
+                            <CreativePreview key={creative.id} creative={creative} />
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Placeholder - Borderless */}
+                {!isGenerating && generatedCreatives.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-96 bg-white/5 backdrop-blur-xl rounded-xl text-center text-gray-300">
+                    <ImageIcon className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-200">Generated creatives will appear here</h3>
+                    <p className="mt-1 text-sm text-gray-400 px-4">Add inspiration images, describe the new content, and click 'Generate'.</p>
+                  </div>
+                )}
+              </div>
+            </div> 
             </TabsContent>
 
             <TabsContent value="gallery" className="mt-6">

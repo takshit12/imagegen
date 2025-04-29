@@ -4,6 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 // --- Detailed Style Replication Instructions (copied from edit-image) ---
 const DETAILED_STYLE_INSTRUCTIONS = `
@@ -41,6 +42,7 @@ async function base64ToBlob(base64, contentType = 'image/png') {
 }
 
 serve(async (_req) => {
+  let job = null; // Declare job in outer scope for catch access
   console.log("Processing style jobs...");
   
   try {
@@ -50,7 +52,7 @@ serve(async (_req) => {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     
     // Get the oldest QUEUED job
-    const { data: job, error: jobError } = await supabaseAdmin
+    const { data: jobData, error: jobError } = await supabaseAdmin
       .from('style_jobs')
       .select('*')
       .eq('status', 'QUEUED')
@@ -66,6 +68,7 @@ serve(async (_req) => {
       });
     }
     
+    job = jobData;
     if (!job) {
       console.log("No jobs to process");
       return new Response(JSON.stringify({ message: "No jobs to process" }), {
@@ -100,7 +103,7 @@ serve(async (_req) => {
         
         // Convert to base64
         const buffer = await data.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        const base64 = base64Encode(new Uint8Array(buffer));
         inspirationImages.push(base64);
       }
     }
